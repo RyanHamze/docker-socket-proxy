@@ -12,7 +12,9 @@ Based on Tecnativa upstream commit `2e118a0` (`v0.5.0`).
 - Added SHAI/Open Container Initiative image labels and a startup permission
   summary.
 - Added SHAI tests for read-only monitoring, denied lifecycle/exec calls, and
-  unknown-path default denial.
+  unknown-path default denial. CI runs the proxy with all capabilities dropped,
+  a read-only root filesystem, constrained tmpfs mounts, no-new-privileges, and
+  a read-only socket mount.
 - SHAI deployment does not publish the listener to a host or LAN port.
 
 The proxy remains a policy boundary, not a claim that the Docker API is safe.
