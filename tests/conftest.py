@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -76,8 +77,17 @@ def proxy_factory(image):
             socket_port = container_data[0]["NetworkSettings"]["Ports"]["2375/tcp"][0][
                 "HostPort"
             ]
-            with local.env(DOCKER_HOST=f"tcp://localhost:{socket_port}"):
-                yield container_id
+            docker_host = f"tcp://localhost:{socket_port}"
+            previous_url = os.environ.get("SHAI_PROXY_TEST_URL")
+            os.environ["SHAI_PROXY_TEST_URL"] = f"http://localhost:{socket_port}"
+            try:
+                with local.env(DOCKER_HOST=docker_host):
+                    yield container_id
+            finally:
+                if previous_url is None:
+                    os.environ.pop("SHAI_PROXY_TEST_URL", None)
+                else:
+                    os.environ["SHAI_PROXY_TEST_URL"] = previous_url
         finally:
             if container_id:
                 _logger.info(f"Removing {container_id}...")

@@ -18,7 +18,7 @@ def test_default_monitoring_is_read_only(proxy_factory):
         docker("container", "ls")
         docker("container", "inspect", container_id)
         docker("container", "stats", "--no-stream", container_id)
-        endpoint = os.environ["DOCKER_HOST"].replace("tcp://", "http://")
+        endpoint = os.environ["SHAI_PROXY_TEST_URL"]
         with urllib.request.urlopen(
             endpoint + f"/events?since={int(time.time()) - 1}&until={int(time.time())}",
             timeout=3,
@@ -37,7 +37,7 @@ def test_default_monitoring_is_read_only(proxy_factory):
 
 def test_unknown_path_is_denied(proxy_factory):
     with proxy_factory():
-        endpoint = os.environ["DOCKER_HOST"].replace("tcp://", "http://")
+        endpoint = os.environ["SHAI_PROXY_TEST_URL"]
         with pytest.raises(urllib.error.HTTPError) as error:
             urllib.request.urlopen(endpoint + "/shai-unknown", timeout=3)
         assert error.value.code == 403
