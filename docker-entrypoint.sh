@@ -1,4 +1,5 @@
 #!/bin/sh
+# Modified for SHAI. Original work by Tecnativa and contributors.
 set -e
 
 # Raise default nofile limit for HAProxy v3
@@ -21,6 +22,8 @@ fi
 
 # Process the HAProxy configuration template using sed
 sed "s|\${BIND_CONFIG}|$BIND_CONFIG|g" /usr/local/etc/haproxy/haproxy.cfg.template > /tmp/haproxy.cfg
+
+printf '%s\n' "SHAI observer permissions: CONTAINERS=${CONTAINERS:-0} EVENTS=${EVENTS:-0} INFO=${INFO:-0} PING=${PING:-0} VERSION=${VERSION:-0} POST=${POST:-0} EXEC=${EXEC:-0} NETWORKS=${NETWORKS:-0} VOLUMES=${VOLUMES:-0}"
 
 # first arg is `-f` or `--some-option`
 if [ "${1#-}" != "$1" ]; then

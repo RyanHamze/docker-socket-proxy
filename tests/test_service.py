@@ -17,14 +17,20 @@ def _check_permissions(allowed_calls, forbidden_calls):
 
 def test_default_permissions(proxy_factory):
     with proxy_factory() as test_container:
-        allowed_calls = (("version",),)
+        allowed_calls = (
+            ("version",),
+            ("info",),
+            ("container", "ls"),
+            ("container", "inspect", test_container),
+            ("container", "logs", test_container),
+        )
         forbidden_calls = (
             ("pull", "alpine"),
             ("--rm", "alpine", "--name", test_container),
-            ("logs", test_container),
             ("wait", test_container),
             ("rm", "-f", test_container),
             ("restart", test_container),
+            ("exec", test_container, "true"),
             ("network", "ls"),
             ("config", "ls"),
             ("service", "ls"),
@@ -69,19 +75,17 @@ def test_post_permissions(proxy_factory):
 
 def test_network_post_permissions(proxy_factory):
     with proxy_factory(POST=1, NETWORKS=1):
-        allowed_calls = [
+        allowed_calls = []
+        forbidden_calls = [
             ("network", "ls"),
             ("network", "create", "foo"),
             ("network", "rm", "foo"),
         ]
-        forbidden_calls = []
         _check_permissions(allowed_calls, forbidden_calls)
 
 
 def test_exec_permissions(proxy_factory):
     with proxy_factory(CONTAINERS=1, EXEC=1, POST=1) as container_id:
-        allowed_calls = [
-            ("exec", container_id, "ls"),
-        ]
-        forbidden_calls = []
+        allowed_calls = []
+        forbidden_calls = [("exec", container_id, "ls")]
         _check_permissions(allowed_calls, forbidden_calls)

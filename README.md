@@ -4,6 +4,11 @@
 
 # Docker Socket Proxy
 
+> **SHAI fork:** This repository is maintained for SHAI monitoring. It is based
+> on Tecnativa's Docker Socket Proxy and retains the upstream Apache-2.0
+> license. See `NOTICE.md` and `CHANGES.md`. SHAI's deployment uses no published
+> host/LAN port and enables only read-only monitoring endpoints by default.
+
 ## What?
 
 This is a security-enhanced proxy for the Docker Socket.
@@ -103,6 +108,8 @@ API, so they are granted by default.
 -   `EVENTS`
 -   `PING`
 -   `VERSION`
+-   `CONTAINERS` (SHAI fork)
+-   `INFO` (SHAI fork)
 
 ### Access revoked by default
 

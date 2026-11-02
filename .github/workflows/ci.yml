@@ -1,168 +1,56 @@
-name: Build, Test & Deploy
+name: Test and publish SHAI observer image
 
-"on":
+on:
   pull_request:
   push:
-    branches:
-      - master
-    tags:
-      - "v*"
-  schedule:
-    - cron: "0 0 * * 0" # Midnight on Sunday
+    branches: [master]
+    tags: ["v*"]
   workflow_dispatch:
-    inputs:
-      pytest_addopts:
-        description:
-          Extra options for pytest; use -vv for full details; see
-          https://docs.pytest.org/en/latest/example/simple.html#how-to-change-command-line-options-defaults
-        required: false
 
-env:
-  LANG: "en_US.utf-8"
-  LC_ALL: "en_US.utf-8"
-  PIP_CACHE_DIR: ${{ github.workspace }}/.cache.~/pip
-  PIPX_HOME: ${{ github.workspace }}/.cache.~/pipx
-  POETRY_CACHE_DIR: ${{ github.workspace }}/.cache.~/pypoetry
-  POETRY_VIRTUALENVS_IN_PROJECT: "true"
-  PYTEST_ADDOPTS: ${{ github.event.inputs.pytest_addopts }}
-  PYTHONIOENCODING: "UTF-8"
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  build-test:
+  test:
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python:
-          - 3.8
     steps:
-      # Prepare environment
-      - uses: actions/checkout@v2
-      # Set up and run tests
-      - name: Install python
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python }}
-      - name: Generate cache key CACHE
-        run:
-          echo "CACHE=${{ secrets.CACHE_DATE }} ${{ runner.os }} $(python -VV |
-          sha256sum | cut -d' ' -f1) ${{ hashFiles('pyproject.toml') }} ${{
-          hashFiles('poetry.lock') }}" >> $GITHUB_ENV
-      - uses: actions/cache@v4
-        with:
-          path: |
-            .cache.~
-            .venv
-            ~/.local/bin
-          key: venv ${{ env.CACHE }}
-      - run: pip install poetry
-      - name: Patch $PATH
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-      - run: poetry install
-      # Run tests
-      - run: poetry run pytest --prebuild
-  build-push:
-    runs-on: ubuntu-24.04
-    services:
-      registry:
-        image: registry:2
-        ports:
-          - 5000:5000
-    env:
-      DOCKER_IMAGE_NAME: ${{ github.repository }}
-      DOCKERHUB_IMAGE_NAME: tecnativa/docker-socket-proxy
-      PUSH: ${{ toJSON(github.event_name != 'pull_request') }}
-    steps:
-      # Set up Docker Environment
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/setup-python@v5
         with:
-          path: |
-            /tmp/.buildx-cache
-          key: buildx|${{ secrets.CACHE_DATE }}|${{ runner.os }}
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: network=host
-          install: true
-      # Build and push
-      - name: Docker meta for local images
-        id: docker_meta_local
-        uses: crazy-max/ghaction-docker-meta@v4
-        with:
-          images: localhost:5000/${{ env.DOCKER_IMAGE_NAME }}
-          tag-edge: true
-          tag-semver: |
-            {{version}}
-            {{major}}
-            {{major}}.{{minor}}
-      - name: Build and push to local (test) registry
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: |
-            linux/386
-            linux/amd64
-            linux/arm/v6
-            linux/arm/v7
-            linux/arm/v8
-            linux/arm64
-            linux/ppc64le
-            linux/s390x
-          load: false
-          push: true
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
-          labels: ${{ steps.docker_meta_local.outputs.labels }}
-          tags: ${{ steps.docker_meta_local.outputs.tags }}
-      # Next jobs only happen outside of pull requests and on main branches
-      - name: Login to DockerHub
-        if: ${{ fromJSON(env.PUSH) }}
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_LOGIN }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Login to GitHub Container Registry
-        if: ${{ fromJSON(env.PUSH) }}
-        uses: docker/login-action@v3
+          python-version: "3.12"
+      - name: Install test dependencies
+        run: python -m pip install pytest plumbum
+      - name: Build locally and run upstream plus SHAI policy tests
+        run: pytest --prebuild -vv
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ secrets.BOT_LOGIN }}
-          password: ${{ secrets.BOT_TOKEN }}
-      - name: Docker meta for public images
-        if: ${{ fromJSON(env.PUSH) }}
-        id: docker_meta_public
-        uses: crazy-max/ghaction-docker-meta@v4
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: metadata
+        uses: docker/metadata-action@v5
         with:
-          images: |
-            ghcr.io/${{ env.DOCKER_IMAGE_NAME }}
-            ${{ env.DOCKERHUB_IMAGE_NAME }}
-          tag-edge: true
-          tag-semver: |
-            {{version}}
-            {{major}}
-            {{major}}.{{minor}}
-      - name: Build and push to public registry(s)
-        if: ${{ fromJSON(env.PUSH) }}
-        uses: docker/build-push-action@v4
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=edge
+            type=sha,prefix=sha-
+            type=ref,event=tag
+      - uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
-          platforms: |
-            linux/386
-            linux/amd64
-            linux/arm/v6
-            linux/arm/v7
-            linux/arm/v8
-            linux/arm64
-            linux/ppc64le
-            linux/s390x
-          load: false
+          platforms: linux/amd64,linux/arm64
           push: true
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
-          labels: ${{ steps.docker_meta_public.outputs.labels }}
-          tags: ${{ steps.docker_meta_public.outputs.tags }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          provenance: mode=max
+          sbom: true
