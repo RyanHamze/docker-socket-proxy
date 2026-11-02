@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install test dependencies
-        run: python -m pip install pytest plumbum
+        run: python -m pip install pytest pytest-xdist plumbum
       - name: Build locally and run upstream plus SHAI policy tests
         run: pytest --prebuild -vv
 
