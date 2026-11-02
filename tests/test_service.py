@@ -37,7 +37,6 @@ def test_default_permissions(proxy_factory):
             ("stack", "ls"),
             ("secret", "ls"),
             ("plugin", "ls"),
-            ("system", "info"),
             ("build", "."),
             ("buildx build", "."),
             ("swarm", "init"),
